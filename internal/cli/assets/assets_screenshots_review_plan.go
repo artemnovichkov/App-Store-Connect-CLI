@@ -260,7 +260,7 @@ func executeScreenshotReviewPlan(ctx context.Context, opts screenshotReviewPlanO
 
 	resolvedVersionID, resolvedVersion, resolvedPlatform, err := resolveScreenshotPlanVersion(requestCtx, client, resolvedAppID, versionValue, versionIDValue, normalizedPlatform)
 	if err != nil {
-		return nil, fmt.Errorf("screenshots %s: %w", reviewPlanVerb(opts.Apply), err)
+		return nil, fmt.Errorf("screenshots %s: %w", reviewPlanVerb(opts.Apply), screenshotVersionSelectorError(err, opts.Version))
 	}
 
 	localizationsResp, err := client.GetAppStoreVersionLocalizations(requestCtx, resolvedVersionID, asc.WithAppStoreVersionLocalizationsLimit(200))

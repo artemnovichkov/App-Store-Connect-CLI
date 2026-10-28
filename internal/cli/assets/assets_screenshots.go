@@ -201,6 +201,20 @@ func normalizeScreenshotVersionSelector(version, versionID string) (string, stri
 	return "", id, err
 }
 
+// screenshotVersionSelectorError preserves the flag that supplied an ID before
+// normalization routes it through the legacy version-ID resolver.
+func screenshotVersionSelectorError(err error, version string) error {
+	version = strings.TrimSpace(version)
+	if version == "" || shared.IsAppStoreVersionString(version) {
+		return err
+	}
+	diagnostic, ok := shared.DiagnosticFromError(err)
+	if !ok || diagnostic.Parameter != "--version-id" {
+		return err
+	}
+	return shared.WithDiagnostic(err, diagnostic.Code, "--version")
+}
+
 func resolveAppScopedScreenshotPlatform(version, platformValue string) (string, error) {
 	trimmedPlatform := strings.TrimSpace(platformValue)
 	if trimmedPlatform != "" {
@@ -489,7 +503,7 @@ func executeScreenshotListCommand(ctx context.Context, opts screenshotListComman
 			}
 			cancel()
 			if resolveErr != nil {
-				return nil, resolveErr
+				return nil, screenshotVersionSelectorError(resolveErr, opts.Version)
 			}
 		}
 
@@ -1057,7 +1071,7 @@ func executeScreenshotUploadCommand(ctx context.Context, opts screenshotUploadCo
 	}
 	resolvedVersionID, resolvedVersion, resolvedPlatform, err := resolveScreenshotPlanVersion(requestCtx, client, resolvedAppID, versionValue, versionIDValue, normalizedPlatform)
 	if err != nil {
-		return nil, err
+		return nil, screenshotVersionSelectorError(err, opts.Version)
 	}
 
 	result, err := uploadScreenshotsFanout(ctx, screenshotUploadFanoutConfig{

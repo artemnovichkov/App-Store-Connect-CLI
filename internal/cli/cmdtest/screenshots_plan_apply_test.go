@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/asc"
+	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/shared"
 )
 
 func TestScreenshotsPlanAndApplyValidationErrors(t *testing.T) {
@@ -895,6 +896,10 @@ func testScreenshotReviewVersionMismatch(t *testing.T, command, selector, appID,
 	}
 	if !strings.Contains(runErr.Error(), wantErr) {
 		t.Fatalf("expected mismatch error, got %v", runErr)
+	}
+	diagnostic, ok := shared.DiagnosticFromError(runErr)
+	if !ok || diagnostic.Code != shared.DiagnosticInvalidInput || diagnostic.Parameter != selector {
+		t.Fatalf("diagnostic = %+v, %t; want invalid_input for %s", diagnostic, ok, selector)
 	}
 	if stdout != "" {
 		t.Fatalf("expected empty stdout, got %q", stdout)

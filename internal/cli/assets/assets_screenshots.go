@@ -461,7 +461,11 @@ func executeScreenshotListCommand(ctx context.Context, opts screenshotListComman
 			}
 		}
 		if platformValue != "" && versionValue == "" && appValue == "" {
-			return nil, shared.UsageError("--platform with --version-id requires --app or ASC_APP_ID so ownership and platform can be verified")
+			versionFlag := "--version-id"
+			if strings.TrimSpace(opts.Version) != "" {
+				versionFlag = "--version"
+			}
+			return nil, shared.UsageErrorf("--platform with %s requires --app or ASC_APP_ID so ownership and platform can be verified", versionFlag)
 		}
 		if platformValue != "" {
 			parsedPlatform, platformErr := shared.NormalizeAppStoreVersionPlatform(platformValue)

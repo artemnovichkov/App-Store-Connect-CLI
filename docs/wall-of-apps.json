@@ -365,6 +365,11 @@
     "icon": "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/98/b8/9f/98b89fce-4ee9-3a15-45d5-4def0e3808e0/AppIcon-0-0-1x_U007epad-0-1-85-220.png/512x512bb.jpg"
   },
   {
+    "app": "Clann Family Album",
+    "link": "https://apps.apple.com/us/app/clann-family-album/id6755940741?uo=4",
+    "icon": "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/3b/9f/34/3b9f3479-52c8-69f4-fb60-15c1dda0a006/AppIcon-0-0-1x_U007epad-0-1-85-220.png/512x512bb.jpg"
+  },
+  {
     "app": "Clean Links: URL Privacy",
     "link": "https://apps.apple.com/us/app/clean-links-url-privacy/id6747395062?uo=4",
     "icon": "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/06/bd/0d/06bd0de6-4342-ed6d-357d-6178b1ebce6c/AppIcon-0-0-1x_U007epad-0-1-0-85-220.png/512x512bb.jpg"
@@ -836,6 +841,11 @@
     "app": "Foliax",
     "link": "https://apps.apple.com/us/app/foliax/id6760576005?uo=4",
     "icon": "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/df/ed/b0/dfedb05d-d90c-58bf-6048-c0b5ac57984c/AppIcon-0-0-1x_U007epad-0-1-85-220.jpeg/512x512bb.jpg"
+  },
+  {
+    "app": "Folio – Book Tracker",
+    "link": "https://apps.apple.com/us/app/folio-book-tracker/id6764345729?uo=4",
+    "icon": "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/0c/be/60/0cbe6092-eb81-50d6-3f2c-752b12c93976/AppIcon-0-0-1x_U007epad-0-1-85-220.png/512x512bb.jpg"
   },
   {
     "app": "Font Wizard Pro: Font Manager",

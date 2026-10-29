@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/asc"
+	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/shared"
 )
 
 func TestScreenshotsPlanAndApplyValidationErrors(t *testing.T) {
@@ -158,6 +159,13 @@ func TestScreenshotsPlanBuildsApprovedUploadGroups(t *testing.T) {
 }
 
 func TestScreenshotsPlanVersionIDUsesResolvedPlatformWithoutExplicitPlatform(t *testing.T) {
+	for _, selector := range []string{"--version-id", "--version"} {
+		t.Run(selector, func(t *testing.T) { testScreenshotsPlanVersionIDPlatform(t, selector) })
+	}
+}
+
+func testScreenshotsPlanVersionIDPlatform(t *testing.T, selector string) {
+	t.Helper()
 	setupAuth(t)
 	t.Setenv("ASC_CONFIG_PATH", filepath.Join(t.TempDir(), "nonexistent.json"))
 	t.Setenv("ASC_APP_ID", "")
@@ -172,6 +180,9 @@ func TestScreenshotsPlanVersionIDUsesResolvedPlatformWithoutExplicitPlatform(t *
 	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Path {
 		case "/v1/appStoreVersions/version-mac":
+			if req.Method != http.MethodGet || req.URL.Query().Get("include") != "app" {
+				t.Fatalf("expected owned version lookup, got %s %s", req.Method, req.URL)
+			}
 			return statusJSONResponse(`{"data":{"type":"appStoreVersions","id":"version-mac","attributes":{"versionString":"2.0.0","platform":"MAC_OS"},"relationships":{"app":{"data":{"type":"apps","id":"123456789"}}}}}`), nil
 		case "/v1/appStoreVersions/version-mac/appStoreVersionLocalizations":
 			return statusJSONResponse(`{"data":[{"type":"appStoreVersionLocalizations","id":"LOC_123","attributes":{"locale":"en-US"}}]}`), nil
@@ -190,7 +201,7 @@ func TestScreenshotsPlanVersionIDUsesResolvedPlatformWithoutExplicitPlatform(t *
 		if err := root.Parse([]string{
 			"screenshots", "plan",
 			"--app", "123456789",
-			"--version-id", "version-mac",
+			selector, "version-mac",
 			"--review-output-dir", reviewDir,
 			"--output", "json",
 		}); err != nil {
@@ -814,6 +825,20 @@ func TestScreenshotsApplyUploadsIPad13ScreenshotToCurrentSlotOnly(t *testing.T) 
 }
 
 func TestScreenshotsPlanRejectsVersionIDFromDifferentApp(t *testing.T) {
+	testScreenshotReviewVersionMismatch(t, "plan", "--version-id", "999999999", "", `belongs to app "999999999", not "123456789"`)
+}
+
+func TestScreenshotsApplyRejectsCanonicalVersionMismatch(t *testing.T) {
+	t.Run("app", func(t *testing.T) {
+		testScreenshotReviewVersionMismatch(t, "apply", "--version", "999999999", "", `belongs to app "999999999", not "123456789"`)
+	})
+	t.Run("platform", func(t *testing.T) {
+		testScreenshotReviewVersionMismatch(t, "apply", "--version", "123456789", "MAC_OS", `is on platform "IOS", not "MAC_OS"`)
+	})
+}
+
+func testScreenshotReviewVersionMismatch(t *testing.T, command, selector, appID, platform, wantErr string) {
+	t.Helper()
 	setupAuth(t)
 	t.Setenv("ASC_CONFIG_PATH", filepath.Join(t.TempDir(), "nonexistent.json"))
 	t.Setenv("ASC_APP_ID", "")
@@ -826,14 +851,14 @@ func TestScreenshotsPlanRejectsVersionIDFromDifferentApp(t *testing.T) {
 	})
 
 	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		switch req.URL.Path {
-		case "/v1/appStoreVersions/version-1":
+		switch {
+		case req.Method == http.MethodGet && req.URL.Path == "/v1/appStoreVersions/version-1":
 			return statusJSONResponse(`{
 				"data":{
 					"type":"appStoreVersions",
 					"id":"version-1",
 					"attributes":{"versionString":"1.2.3","platform":"IOS"},
-					"relationships":{"app":{"data":{"type":"apps","id":"999999999"}}}
+					"relationships":{"app":{"data":{"type":"apps","id":"` + appID + `"}}}
 				}
 			}`), nil
 		default:
@@ -847,12 +872,17 @@ func TestScreenshotsPlanRejectsVersionIDFromDifferentApp(t *testing.T) {
 
 	var runErr error
 	stdout, stderr := captureOutput(t, func() {
-		if err := root.Parse([]string{
-			"screenshots", "plan",
+		args := []string{
+			"screenshots", command,
 			"--app", "123456789",
-			"--version-id", "version-1",
+			selector, "version-1",
+			"--platform", platform,
 			"--review-output-dir", reviewDir,
-		}); err != nil {
+		}
+		if command == "apply" {
+			args = append(args, "--confirm")
+		}
+		if err := root.Parse(args); err != nil {
 			t.Fatalf("parse error: %v", err)
 		}
 		runErr = root.Run(context.Background())
@@ -864,8 +894,12 @@ func TestScreenshotsPlanRejectsVersionIDFromDifferentApp(t *testing.T) {
 	if errors.Is(runErr, flag.ErrHelp) {
 		t.Fatalf("expected runtime validation error, got ErrHelp")
 	}
-	if !strings.Contains(runErr.Error(), `version "version-1" belongs to app "999999999", not "123456789"`) {
+	if !strings.Contains(runErr.Error(), wantErr) {
 		t.Fatalf("expected mismatch error, got %v", runErr)
+	}
+	diagnostic, ok := shared.DiagnosticFromError(runErr)
+	if !ok || diagnostic.Code != shared.DiagnosticInvalidInput || diagnostic.Parameter != selector {
+		t.Fatalf("diagnostic = %+v, %t; want invalid_input for %s", diagnostic, ok, selector)
 	}
 	if stdout != "" {
 		t.Fatalf("expected empty stdout, got %q", stdout)

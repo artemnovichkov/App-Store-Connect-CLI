@@ -219,11 +219,6 @@ expose the public numeric ASC IAP id, so that numeric id is not resolved by this
 			if err != nil {
 				return fmt.Errorf("web review iaps attach: %w", withReviewSelectorDiagnostic(err, "--iap-id"))
 			}
-			// The iris attach POST takes the iris resource id, not the
-			// caller's selector — `--iap-id` may have been a bundle-style
-			// productId that matched via `attributes.productId`, in which
-			// case posting the selector as the relationship id would be
-			// wrong. Always use the resolved iris UUID.
 			resolvedIrisID := strings.TrimSpace(reviewIAP.ID)
 			if reviewIAP.SubmitWithNextAppStoreVersion || iapStateIndicatesAlreadyAttached(reviewIAP.State) {
 				payload := reviewIAPMutationOutput{
@@ -245,8 +240,13 @@ expose the public numeric ASC IAP id, so that numeric id is not resolved by this
 				)
 			}
 
+			resolvedV2ID, err := client.ResolveReviewIAPV2ID(requestCtx, trimmedAppID, reviewIAP.ProductID)
+			if err != nil {
+				return withWebAuthHint(fmt.Errorf("web review iaps attach: resolve V2 in-app purchase: %w", err), "web review iaps attach")
+			}
+
 			submission, err := withWebSpinnerValue("Attaching IAP to next app version", func() (webcore.ReviewIAPSubmission, error) {
-				return client.CreateInAppPurchaseSubmission(requestCtx, resolvedIrisID)
+				return client.CreateInAppPurchaseSubmission(requestCtx, resolvedV2ID)
 			})
 			if err != nil {
 				if webcore.IsAlreadyExistsConflict(err) {
@@ -256,7 +256,7 @@ expose the public numeric ASC IAP id, so that numeric id is not resolved by this
 						Operation: "attach",
 						Changed:   false,
 						Submission: webcore.ReviewIAPSubmission{
-							InAppPurchaseID:               resolvedIrisID,
+							InAppPurchaseID:               resolvedV2ID,
 							SubmitWithNextAppStoreVersion: true,
 						},
 					}

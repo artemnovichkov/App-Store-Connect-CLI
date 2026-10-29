@@ -22,10 +22,11 @@ func TestWebReviewIAPsAttachRootSuccess(t *testing.T) {
 
 	const (
 		irisResourceID = "11111111-2222-3333-4444-555555555555"
+		v2ResourceID   = "9000000001"
 		productID      = "com.example.removeads"
 	)
 
-	requests := newRequestLog(3)
+	requests := newRequestLog(5)
 	installDefaultTransport(t, roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requests.Add(req.Method + " " + req.URL.Host + req.URL.Path)
 		switch {
@@ -59,6 +60,14 @@ func TestWebReviewIAPsAttachRootSuccess(t *testing.T) {
 						}
 					}]
 				}`, req), nil
+		case req.Method == http.MethodGet && req.URL.Path == "/iris/v1/apps/123456789/inAppPurchasesV2":
+			if req.URL.Query().Get("page[cursor]") == "next" {
+				return webReviewIAPJSONResponse(http.StatusOK, `{"data":[{"type":"inAppPurchases","id":"`+v2ResourceID+`","attributes":{"productId":"`+productID+`"}}]}`, req), nil
+			}
+			if got := req.URL.Query(); got.Get("fields[inAppPurchases]") != "productId" || got.Get("limit") != "300" || len(got) != 2 {
+				t.Fatalf("unexpected V2 lookup query: %s", req.URL.RawQuery)
+			}
+			return webReviewIAPJSONResponse(http.StatusOK, `{"data":[],"links":{"next":"/iris/v1/apps/123456789/inAppPurchasesV2?page%5Bcursor%5D=next"}}`, req), nil
 		case req.Method == http.MethodPost &&
 			req.URL.Host == "appstoreconnect.apple.com" &&
 			req.URL.Path == "/iris/v1/inAppPurchaseSubmissions":
@@ -83,8 +92,8 @@ func TestWebReviewIAPsAttachRootSuccess(t *testing.T) {
 			if err := json.Unmarshal(bodyBytes, &post); err != nil {
 				t.Fatalf("decode request body: %v; body=%s", err, bodyBytes)
 			}
-			if got := post.Data.Relationships.InAppPurchaseV2.Data.ID; got != irisResourceID {
-				t.Fatalf("expected request body relationship id %q, got %q", irisResourceID, got)
+			if got := post.Data.Relationships.InAppPurchaseV2.Data.ID; got != v2ResourceID {
+				t.Fatalf("expected request body relationship id %q, got %q", v2ResourceID, got)
 			}
 			if got := post.Data.Relationships.InAppPurchaseV2.Data.ID; got == productID {
 				t.Fatalf("request body must not use productId as relationship id; body=%s", bodyBytes)
@@ -101,7 +110,7 @@ func TestWebReviewIAPsAttachRootSuccess(t *testing.T) {
 						},
 						"relationships": {
 							"inAppPurchaseV2": {
-								"data": {"type": "inAppPurchases", "id": "`+irisResourceID+`"}
+								"data": {"type": "inAppPurchases", "id": "`+v2ResourceID+`"}
 							}
 						}
 					}
@@ -153,13 +162,15 @@ func TestWebReviewIAPsAttachRootSuccess(t *testing.T) {
 	if payload.AppID != "123456789" || payload.IAPID != productID || payload.Operation != "attach" || !payload.Changed {
 		t.Fatalf("unexpected payload: %#v", payload)
 	}
-	if payload.Submission.ID != "submission-1" || payload.Submission.InAppPurchaseID != irisResourceID {
+	if payload.Submission.ID != "submission-1" || payload.Submission.InAppPurchaseID != v2ResourceID {
 		t.Fatalf("unexpected submission: %#v", payload.Submission)
 	}
 
 	wantRequests := []string{
 		"GET appstoreconnect.apple.com/olympus/v1/session",
 		"GET appstoreconnect.apple.com/iris/v1/apps/123456789/inAppPurchases",
+		"GET appstoreconnect.apple.com/iris/v1/apps/123456789/inAppPurchasesV2",
+		"GET appstoreconnect.apple.com/iris/v1/apps/123456789/inAppPurchasesV2",
 		"POST appstoreconnect.apple.com/iris/v1/inAppPurchaseSubmissions",
 	}
 	if got := requests.Snapshot(); strings.Join(got, "\n") != strings.Join(wantRequests, "\n") {
@@ -395,6 +406,8 @@ func installSuccessfulWebReviewIAPAttachTransport(t *testing.T, email string) {
 					}
 				}]
 			}`, req), nil
+		case req.Method == http.MethodGet && req.URL.Path == "/iris/v1/apps/123456789/inAppPurchasesV2":
+			return webReviewIAPJSONResponse(http.StatusOK, `{"data":[{"type":"inAppPurchases","id":"9000000001","attributes":{"productId":"com.example.removeads"}}]}`, req), nil
 		case req.Method == http.MethodPost &&
 			req.URL.Host == "appstoreconnect.apple.com" &&
 			req.URL.Path == "/iris/v1/inAppPurchaseSubmissions":

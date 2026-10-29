@@ -148,6 +148,45 @@ func (c *Client) FindReviewIAP(ctx context.Context, appID, iapID string) (Review
 	return ReviewIAP{}, false, nil
 }
 
+// ResolveReviewIAPV2ID resolves the selected legacy IAP to its app-scoped V2 ID.
+func (c *Client) ResolveReviewIAPV2ID(ctx context.Context, appID, productID string) (string, error) {
+	appID = strings.TrimSpace(appID)
+	if appID == "" {
+		return "", fmt.Errorf("app id is required")
+	}
+	if productID == "" {
+		return "", fmt.Errorf("selected in-app purchase is missing a product ID; refusing to attach")
+	}
+	query := url.Values{}
+	query.Set("fields[inAppPurchases]", "productId")
+	query.Set("limit", "300")
+	payload, err := c.fetchJSONAPIPages(ctx, queryPath("/apps/"+url.PathEscape(appID)+"/inAppPurchasesV2", query), "review IAP V2 catalog")
+	if err != nil {
+		return "", err
+	}
+	resolvedID := ""
+	for _, resource := range payload.Data {
+		if resource.Type != "inAppPurchases" {
+			return "", fmt.Errorf("review IAP V2 catalog: unexpected resource type %q", resource.Type)
+		}
+		if stringAttrPreserveWhitespace(resource.Attributes, "productId") != productID {
+			continue
+		}
+		id := strings.TrimSpace(resource.ID)
+		if id == "" {
+			return "", fmt.Errorf("review IAP V2 catalog: missing resource id for product ID %q; refusing to attach", productID)
+		}
+		if resolvedID != "" && resolvedID != id {
+			return "", fmt.Errorf("multiple V2 in-app purchases for product ID %q under app %q; refusing to attach", productID, appID)
+		}
+		resolvedID = id
+	}
+	if resolvedID == "" {
+		return "", fmt.Errorf("no V2 in-app purchase for product ID %q under app %q; refusing to attach", productID, appID)
+	}
+	return resolvedID, nil
+}
+
 func appendUniqueReviewIAPMatch(matches *[]ReviewIAP, candidate ReviewIAP) {
 	for _, existing := range *matches {
 		if strings.TrimSpace(existing.ID) == strings.TrimSpace(candidate.ID) {
